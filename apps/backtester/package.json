@@ -1,0 +1,27 @@
+{
+  "name": "@pm-bot/backtester",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@pm-bot/config": "workspace:*",
+    "@pm-bot/core": "workspace:*",
+    "@pm-bot/storage": "workspace:*",
+    "@pm-bot/signals": "workspace:*",
+    "@pm-bot/execution": "workspace:*",
+    "@pm-bot/risk": "workspace:*",
+    "commander": "^11.1.0",
+    "decimal.js": "^10.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}
+

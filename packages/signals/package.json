@@ -1,0 +1,26 @@
+{
+  "name": "@pm-bot/signals",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@pm-bot/config": "workspace:*",
+    "@pm-bot/core": "workspace:*",
+    "@pm-bot/market-discovery": "workspace:*",
+    "@pm-bot/storage": "workspace:*",
+    "decimal.js": "^10.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0",
+    "vitest": "^1.2.0"
+  }
+}
+

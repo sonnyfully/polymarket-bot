@@ -1,0 +1,34 @@
+{
+  "name": "@pm-bot/bot",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "pm-bot": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@pm-bot/config": "workspace:*",
+    "@pm-bot/core": "workspace:*",
+    "@pm-bot/polymarket": "workspace:*",
+    "@pm-bot/storage": "workspace:*",
+    "@pm-bot/signals": "workspace:*",
+    "@pm-bot/execution": "workspace:*",
+    "@pm-bot/risk": "workspace:*",
+    "@pm-bot/market-discovery": "workspace:*",
+    "pino": "^8.17.0",
+    "pino-pretty": "^10.3.1",
+    "commander": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}
+

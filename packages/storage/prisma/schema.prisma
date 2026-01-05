@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// For Postgres, change datasource to:
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+// }
+
+model Market {
+  id          String   @id
+  question    String
+  description String?
+  conditionId String
+  endDate     DateTime?
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  outcomes    OutcomeToken[]
+  orderBooks  OrderBookSnapshot[]
+  trades      Trade[]
+  positions   Position[]
+  orders      Order[]
+}
+
+model OutcomeToken {
+  id       String @id
+  tokenId  String @unique
+  outcome  String
+  marketId String
+  decimals Int    @default(18)
+
+  market   Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  orderBooks OrderBookSnapshot[]
+  trades   Trade[]
+  positions Position[]
+  orders   Order[]
+}
+
+model OrderBookSnapshot {
+  id        String   @id @default(uuid())
+  tokenId   String
+  marketId  String
+  bids      String   // JSON array of [price, size]
+  asks      String   // JSON array of [price, size]
+  sequence  Int?
+  timestamp DateTime @default(now())
+
+  market Market        @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  token  OutcomeToken  @relation(fields: [tokenId], references: [tokenId], onDelete: Cascade)
+
+  @@index([tokenId, timestamp])
+  @@index([marketId, timestamp])
+}
+
+model Trade {
+  id        String   @id
+  marketId  String
+  tokenId   String
+  price     String   // Decimal as string
+  size      String   // Decimal as string
+  side      String   // 'buy' | 'sell'
+  timestamp DateTime
+  taker     String?
+  maker     String?
+
+  market Market       @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  token  OutcomeToken @relation(fields: [tokenId], references: [tokenId], onDelete: Cascade)
+
+  @@index([tokenId, timestamp])
+  @@index([marketId, timestamp])
+}
+
+model Position {
+  id            String   @id @default(uuid())
+  marketId      String
+  tokenId       String
+  size          String   // Decimal as string (positive = long, negative = short)
+  avgPrice      String   // Decimal as string
+  realizedPnl   String   @default("0") // Decimal as string
+  unrealizedPnl String   @default("0") // Decimal as string
+  lastUpdate    DateTime @default(now()) @updatedAt
+
+  market Market       @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  token  OutcomeToken @relation(fields: [tokenId], references: [tokenId], onDelete: Cascade)
+
+  @@unique([marketId, tokenId])
+  @@index([marketId])
+}
+
+model Order {
+  id            String   @id
+  marketId      String
+  tokenId       String
+  side          String   // 'buy' | 'sell'
+  type          String   // 'limit' | 'market'
+  price         String   // Decimal as string
+  size          String   // Decimal as string
+  filledSize    String   @default("0") // Decimal as string
+  status        String   // OrderStatus enum
+  clientOrderId String?  @unique
+  reason        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  market Market       @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  token  OutcomeToken @relation(fields: [tokenId], references: [tokenId], onDelete: Cascade)
+  fills  Fill[]
+
+  @@index([status])
+  @@index([marketId])
+  @@index([tokenId])
+  @@index([createdAt])
+}
+
+model Fill {
+  id        String   @id @default(uuid())
+  orderId   String
+  marketId  String
+  tokenId   String
+  side      String   // 'buy' | 'sell'
+  price     String   // Decimal as string
+  size      String   // Decimal as string
+  fee       String   @default("0") // Decimal as string
+  timestamp DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([marketId])
+  @@index([timestamp])
+}
+
+model BacktestRun {
+  id          String   @id @default(uuid())
+  strategy    String
+  startDate   DateTime
+  endDate     DateTime
+  initialCapital String // Decimal as string
+  finalCapital    String // Decimal as string
+  totalPnl        String // Decimal as string
+  sharpeRatio     String?
+  maxDrawdown     String?
+  hitRate         String?
+  avgEdge         String?
+  totalSlippage   String?
+  totalFees       String?
+  turnover        String?
+  createdAt       DateTime @default(now())
+}
+
+model ExperimentRun {
+  id            String   @id @default(uuid())
+  strategy      String   // 'parity' | 'xrv' | 'time' | 'multi'
+  universeKey   String?
+  startDate     DateTime
+  endDate       DateTime
+  initialCapital String
+  finalCapital  String
+  totalPnl      String
+  totalReturn   String
+  maxDrawdown   String
+  sharpeRatio   String?
+  seed          Int?
+  createdAt     DateTime @default(now())
+  
+  signals       Signal[]
+  dailyStats    DailyStats[]
+  relationStats RelationStats[]
+}
+
+model Signal {
+  id            String   @id
+  experimentId  String
+  strategy      String   // 'parity' | 'xrv' | 'time'
+  tokenId       String
+  marketId      String?
+  side          String   // 'buy' | 'sell'
+  limitPrice    String
+  size          String
+  expectedEdgeBps String
+  confidence    String
+  ttlMs         Int
+  createdAt     DateTime
+  rationale     String   // JSON
+  mappingVersion String?
+  
+  experiment    ExperimentRun @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  
+  @@index([experimentId])
+  @@index([tokenId])
+  @@index([strategy])
+}
+
+model DailyStats {
+  id              String   @id @default(uuid())
+  experimentId    String
+  date            String   // YYYY-MM-DD
+  strategy        String
+  realizedPnl     String
+  unrealizedPnl   String
+  totalPnl        String
+  maxDrawdown     String
+  turnover        String
+  hitRate         String
+  avgNetEdgeBps   String
+  avgSpreadBps    String
+  avgSlippageBps  String
+  avgGrossExposure String
+  maxGrossExposure String
+  signalCount     Int
+  fillCount       Int
+  
+  experiment      ExperimentRun @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  
+  @@index([experimentId, date])
+}
+
+model RelationStats {
+  id            String   @id @default(uuid())
+  experimentId  String
+  relationId    String
+  relationKind  String
+  count         Int
+  pnl           String
+  avgEdgeBps    String
+  disabled      Boolean  @default(false)
+  
+  experiment    ExperimentRun @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  
+  @@index([experimentId])
+  @@index([relationId])
+}
+

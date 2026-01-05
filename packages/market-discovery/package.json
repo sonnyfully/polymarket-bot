@@ -1,0 +1,25 @@
+{
+  "name": "@pm-bot/market-discovery",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@pm-bot/config": "workspace:*",
+    "@pm-bot/core": "workspace:*",
+    "@pm-bot/polymarket": "workspace:*",
+    "pino": "^8.17.0",
+    "pino-pretty": "^10.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}
+
