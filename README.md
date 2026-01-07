@@ -1,24 +1,62 @@
 # Polymarket Trading Bot
 
-Production-grade trading and research bot for Polymarket focused on lawful alpha: mispricing detection, cross-market arbitrage, and risk-managed execution.
+A research-grade trading simulator and experimentation framework for Polymarket. This is not a "get rich quick" bot. The goal is to understand where prediction markets break down, how information and liquidity propagate, and which strategies hold up when accounting for costs, slippage, and human behavior.
 
-## Features
+**Everything is paper-traded by default.** The emphasis is on learning, measurement, and correctness rather than speed or hype.
 
-- **Market Ingestion**: REST + WebSocket real-time data feeds
-- **Mispricing Detection**: EMA-based fair value with volatility bands
-- **Cross-Market Arbitrage**: Equivalent outcome detection
-- **Risk Management**: Position limits, circuit breakers, kill switch
-- **Paper Trading**: Safe simulation mode (default)
-- **Backtesting**: Historical replay with metrics
-- **Observability**: Structured logging + Prometheus metrics
+## Philosophy
 
-## Prerequisites
+Prediction markets are often described as "truth machines," but in practice they are messy systems: thin liquidity, inconsistent market design, slow information diffusion, and highly variable participant sophistication. Most people talk about prediction markets at the level of outcomes ("who will win?"), while very little work is done at the level that actually determines profitability: structure, mechanics, and constraints.
+
+This system treats Polymarket as a real market, not a forecasting toy — something that can ingest live order books, reason about logical relationships between markets, simulate realistic execution, and keep an auditable record of what worked and what didn't.
+
+## Core Problem: Mispricing, Not Prediction
+
+The core problem is not prediction. It's mispricing:
+
+- How often do Polymarket outcomes violate basic probability constraints?
+- When two markets encode the same real-world event, how long do inconsistencies persist?
+- Which strategies survive once you include spreads, slippage, and realistic fills?
+- Where does human behavior (overreaction, anchoring, late certainty) create edge?
+
+Most existing bots skip straight to execution. This project is deliberately slower and more introspective: it compares strategies over time, understands failure modes, and surfaces where apparent "alpha" disappears under scrutiny.
+
+## Architecture
+
+The system is split into four layers:
+
+1. **Market Ingestion**: Live market metadata and order book data from Polymarket's Gamma and CLOB APIs (REST + WebSocket). Maintains an in-memory view of markets, order books, and recent trades.
+
+2. **State and Feature Derivation**: Raw market data transformed into derived features (midprice, spread, depth, volatility, time-to-resolution). These are shared inputs to all strategies.
+
+3. **Strategy Engine + Paper Execution**: Multiple strategy modules run in parallel on the same market state. Signals pass through a common risk gate and sizing logic, then execute through a deterministic paper execution simulator that models book depth, slippage, and fees.
+
+4. **Persistence and Evaluation**: All signals, simulated orders, fills, and PnL stored in a local database via Prisma. Makes runs reproducible and allows meaningful comparisons across strategies, markets, and time windows.
+
+A key piece is a semantic market-mapping system (powered by an LLM) that identifies equivalences, inversions, and constraint sets across markets. Strategies that rely on parity or cross-market relative value use this mapping as a first-class input, with confidence thresholds and versioning to avoid silent errors.
+
+## Design Constraints
+
+- **Paper-only by default** with explicit safeguards against accidental live trading
+- **Shared infrastructure**: All strategies share the same ingestion, execution model, and risk limits so results are comparable
+- **Conservative execution**: If an edge does not survive spreads and slippage, it is treated as nonexistent
+- **Clarity over cleverness**: Logic is deterministic, testable, and explainable
+
+## Known Limitations
+
+Paper trading will always lie in subtle ways, especially around passive fills and adverse selection. Market mappings can be wrong or stale, even with confidence thresholds. Some markets are so illiquid that any simulated edge is purely theoretical. Many strategies that look good in isolation degrade when multiple strategies interact or when capital constraints bind.
+
+These failure modes are not treated as bugs to hide; they are part of what the system is designed to surface.
+
+## Quick Start
+
+### Prerequisites
 
 - Node.js 20+
 - pnpm 8+
 - PostgreSQL (optional, SQLite for dev)
 
-## Installation
+### Installation
 
 ```bash
 # Install dependencies
@@ -32,10 +70,9 @@ pnpm --filter @pm-bot/storage db:migrate
 
 # Copy environment file
 cp .env.example .env
-# Edit .env with your configuration
 ```
 
-## Configuration
+### Configuration
 
 Edit `.env`:
 
@@ -44,33 +81,54 @@ Edit `.env`:
 SIMULATION_ONLY=true
 LIVE_TRADING=false
 
-# Polymarket API Keys (for authenticated endpoints only)
-# Public endpoints (market data) don't require keys
-POLYMARKET_API_KEY=your_api_key  # Optional: for order placement
-POLYMARKET_PRIVATE_KEY=your_private_key  # Optional: for signing orders
+# Polymarket API Keys (optional, for authenticated endpoints)
+POLYMARKET_API_KEY=your_api_key
+POLYMARKET_PRIVATE_KEY=your_private_key
 
-# Database (SQLite for dev, Postgres for prod)
+# Database
 DATABASE_URL=file:./dev.db
 
 # Risk Limits
 MAX_POSITION_PER_MARKET=1000
 MAX_DAILY_LOSS=500
 MAX_ORDER_RATE_PER_SECOND=10
+
+# Market Discovery (optional)
+OPENAI_API_KEY=sk-...
 ```
 
-## Usage
-
-### Run Paper Trading Bot
+### Basic Usage
 
 ```bash
-# Default (paper trading)
+# Run paper trading bot (default)
 pnpm --filter bot dev run
 
-# Explicit paper mode
-pnpm --filter bot dev paper
+# Sync market data
+pnpm --filter bot dev data:sync
+
+# Discover equivalent markets (for arbitrage, run once daily)
+pnpm --filter bot dev discover:markets
+
+# View daily report
+pnpm --filter bot dev report:daily
+
+# Research opportunities
+pnpm --filter bot dev research:mispricing
+pnpm --filter bot dev research:arb
 ```
 
-### Run Live Trading Bot
+### Backtesting
+
+```bash
+# Backtest a strategy
+pnpm --filter backtester dev run \
+  --strategy mispricing \
+  --from 2024-01-01 \
+  --to 2024-01-31 \
+  --capital 10000
+```
+
+### Live Trading
 
 ⚠️ **WARNING**: This trades with real money!
 
@@ -80,74 +138,9 @@ pnpm --filter bot dev live
 # Confirmation prompt will appear
 ```
 
-### Sync Market Data
+### Market Mappings
 
-```bash
-# Sync markets, order books, and trades
-pnpm --filter bot dev data:sync
-
-# Sync only markets
-pnpm --filter bot dev data:sync --markets
-
-# Sync only order books
-pnpm --filter bot dev data:sync --books
-```
-
-### Research Commands
-
-```bash
-# Scan for mispricing opportunities
-pnpm --filter bot dev research:mispricing
-
-# Check arbitrage opportunities
-pnpm --filter bot dev research:arb
-```
-
-### Backtesting
-
-```bash
-# Backtest mispricing strategy
-pnpm --filter backtester dev run --strategy mispricing --from 2024-01-01 --to 2024-01-31
-
-# Backtest with custom capital
-pnpm --filter backtester dev run --strategy mispricing --from 2024-01-01 --to 2024-01-31 --capital 50000
-```
-
-### Reports
-
-```bash
-# Daily PnL report
-pnpm --filter bot dev report:daily
-```
-
-### Market Discovery (AI Agent)
-
-Automatically discover equivalent markets using AI embeddings:
-
-```bash
-# Discover equivalent markets and update mappings
-# Requires OPENAI_API_KEY in .env or --openai-key flag
-pnpm --filter bot dev discover:markets
-
-# With custom similarity threshold
-pnpm --filter bot dev discover:markets --similarity-threshold 0.85
-```
-
-**Note**: Run this once daily. Markets don't change frequently, so daily updates are sufficient.
-
-### Kill Switch
-
-```bash
-# Activate kill switch (stops all trading)
-pnpm --filter bot dev kill-switch
-
-# Clear kill switch
-pnpm --filter bot dev kill-switch:clear
-```
-
-## Market Mappings for Arbitrage
-
-Create `config/market-mappings.json` (copy from `config/market-mappings.json.example`):
+For arbitrage strategies, create `config/market-mappings.json` (copy from `config/market-mappings.json.example`):
 
 ```json
 {
@@ -163,11 +156,19 @@ Create `config/market-mappings.json` (copy from `config/market-mappings.json.exa
 }
 ```
 
-## Architecture
+Or use the AI discovery agent (recommended):
 
-- [Architecture Overview](./docs/ARCHITECTURE.md) - System design and data flows
-- [API Integration Guide](./docs/API_INTEGRATION.md) - Polymarket API usage
-- [Experiment Framework](./docs/EXPERIMENT_FRAMEWORK.md) - Paper trading and backtesting
+```bash
+pnpm --filter bot dev discover:markets
+```
+
+## Safety Features
+
+1. **Paper Trading Default**: `SIMULATION_ONLY=true` prevents accidental live trading
+2. **Live Trading Validation**: Requires both flags + confirmation prompt
+3. **Kill Switch**: File-based emergency stop (`pnpm --filter bot dev kill-switch`)
+4. **Circuit Breakers**: Auto-pause on disconnects, stale feeds, high error rates
+5. **Risk Limits**: Hard caps on positions, daily loss, order rate
 
 ## Development
 
@@ -180,53 +181,23 @@ pnpm test
 
 # Lint
 pnpm lint
-
-# Clean
-pnpm clean
 ```
 
-## Safety Features
+## Future Directions
 
-1. **Paper Trading Default**: `SIMULATION_ONLY=true` prevents accidental live trading
-2. **Live Trading Validation**: Requires both flags + confirmation prompt
-3. **Kill Switch**: File-based emergency stop
-4. **Circuit Breakers**: Auto-pause on disconnects, stale feeds, high error rates
-5. **Risk Limits**: Hard caps on positions, daily loss, order rate
+- Better execution realism, especially around passive orders and queue position
+- Systematic analysis of where the market-mapping model is overconfident or brittle
+- Strategy attribution: breaking PnL down into structural edge vs behavioral edge
+- Extending the framework to conditional and nested markets, where logical constraints become more complex
+- Eventually, carefully gated live trading on a very small subset of strategies to validate simulator assumptions
 
-## Known Limitations
+## Documentation
 
-1. **Fair Value Source**: External reference adapter is stubbed; implement your own data source (news APIs, odds aggregators)
-2. **Market Mappings**: Arbitrage requires manual configuration of equivalent markets in `config/market-mappings.json`
-3. **Order Signing**: Uses `@polymarket/clob-client` but may need custom signing for advanced order types
-4. **Fill Model**: Simplified probabilistic model; calibrate fill probability based on historical data
-5. **Sharpe Ratio**: Calculation is simplified; implement proper returns series for production
-
-## Testing
-
-```bash
-# Run all tests
-pnpm test
-
-# Run specific package tests
-pnpm --filter @pm-bot/polymarket test
-pnpm --filter @pm-bot/core test
-pnpm --filter @pm-bot/execution test
-pnpm --filter @pm-bot/signals test
-```
-
-Test coverage:
-- Rate limiter behavior
-- Order book updates
-- Fill simulation
-- Strategy signal generation
-
-## Next Steps
-
-1. Implement external fair value source (news, odds, etc.)
-2. Add more sophisticated backtesting fill models
-3. Implement microstructure strategy (spread capture)
-4. Add dashboard UI (read-only web interface)
-5. Enhance observability (Grafana dashboards)
+- [Architecture Overview](./docs/ARCHITECTURE.md) - System design and data flows
+- [API Integration Guide](./docs/API_INTEGRATION.md) - Polymarket API usage
+- [Experiment Framework](./docs/EXPERIMENT_FRAMEWORK.md) - Paper trading and backtesting
+- [Quick Reference](./QUICK_REFERENCE.md) - Essential commands
+- [Usage Guide](./USAGE.md) - Detailed usage instructions
 
 ## License
 
@@ -236,3 +207,6 @@ MIT
 
 This software is for educational and research purposes. Trading involves risk. Use at your own discretion. The authors are not responsible for any losses.
 
+---
+
+This repo is best read as an experiment log and a thinking tool. If it ends up producing a profitable strategy, that's a bonus — the primary goal is to understand prediction markets as systems, not as betting games.

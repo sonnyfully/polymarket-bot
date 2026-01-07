@@ -1,0 +1,35 @@
+{
+  "mappings": [
+    {
+      "type": "equivalent",
+      "markets": [
+        {
+          "marketId": "example-market-1",
+          "tokenId": "example-token-1",
+          "weight": 1.0
+        },
+        {
+          "marketId": "example-market-2",
+          "tokenId": "example-token-2",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "type": "parity",
+      "markets": [
+        {
+          "marketId": "example-market-3",
+          "tokenId": "example-token-3",
+          "weight": 1.0
+        },
+        {
+          "marketId": "example-market-3",
+          "tokenId": "example-token-4",
+          "weight": 1.0
+        }
+      ]
+    }
+  ]
+}
+
